@@ -1,5 +1,13 @@
 module RubikRL
 
-# Write your package code here.
+using RubikCore
+using Flux
+using Distributions, DataStructures
+
+include("features.jl")
+export features
+
+include("rubik_conv.jl")
+export RubikConv
 
 end

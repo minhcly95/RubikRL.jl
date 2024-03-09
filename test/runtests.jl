@@ -1,6 +1,8 @@
 using RubikRL
 using Test
+using RubikCore, Flux, LinearAlgebra
 
 @testset "RubikRL.jl" begin
-    # Write your tests here.
+    include("features.jl")
+    include("rubik_conv.jl")
 end
