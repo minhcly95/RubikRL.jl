@@ -2,15 +2,13 @@
 struct MCTSTree{M}
     root::MCTSNode
     model::M
-    settings::MCTSSettings
+    settings::Settings
 end
 
-MCTSTree(root::MCTSNode, model; kwargs...) = MCTSTree(root, model, MCTSSettings(; kwargs...))
-
-function MCTSTree(cube::Cube, model; kwargs...)
+function MCTSTree(cube::Cube, model, settings::Settings = Settings())
     dist, policy = model(cube)
     root = MCTSNode(cube, 0, dist, policy)
-    return MCTSTree(root, model; kwargs...)
+    return MCTSTree(root, model, settings)
 end
 
 # Construct a tree (or subtree) using another tree as template
@@ -49,8 +47,8 @@ function avg_utility_and_playouts(tree::MCTSTree, node::MCTSNode)
     return s / p, p
 end
 
-# Descend to the next node
-function descend(tree::MCTSTree, node::MCTSNode, add_noise::Bool=false)
+# Get the next node 1 level down
+function next_node(tree::MCTSTree, node::MCTSNode, add_noise::Bool=false)
     default_utility = avg_utility_and_playouts(tree, node)[1]
     all_utility = fill(default_utility, N_FACETURNS)
     all_playouts = fill(0, N_FACETURNS)
@@ -75,30 +73,25 @@ function descend(tree::MCTSTree, node::MCTSNode, add_noise::Bool=false)
     return node[action], FaceTurn(action)
 end
 
-# Make 1 playout: descend until reached bottom, then create a new node
-function step!(tree::MCTSTree; max_depth::Int=1000, root_noise::Bool=true)
+# Descend to the bottom, return the leaf node and the sequence of actions
+function descend(tree::MCTSTree; max_depth::Int=1000, root_noise::Bool=true)
     node = tree.root
     actions = FaceTurn[]
 
     for _ in 0:max_depth
         if is_terminating(node)
-            # Identity found. Terminate the playout by increase its self-playouts
-            node.self_playouts += 1
+            # Identity found
             return node, actions
         end
 
         # We only add noise at the root node
         is_root = (tree.root == node)
-        next, action = descend(tree, node, is_root && root_noise)
+        next, action = next_node(tree, node, is_root && root_noise)
         push!(actions, action)
 
         if isnothing(next)
-            # Reached the bottom of the tree. Create a new node
-            new_pos = node.position * action
-            dist, policy = tree.model(new_pos)
-            child = MCTSNode(new_pos, node, dist, policy)
-            node[action] = child
-            return child, actions
+            # Reached the bottom of the tree
+            return node, actions
         else
             # Existing node, continue descending
             node = next
@@ -108,10 +101,43 @@ function step!(tree::MCTSTree; max_depth::Int=1000, root_noise::Bool=true)
     error("max depth reached")
 end
 
+# Make 1 playout: descend until reached bottom, then create a new node
+# We do it in batch to be more efficient
+function step!(trees::AbstractVector{<:MCTSTree}; model=trees[1].model, kwargs...)
+    # Get all cubes that need to be evaluated
+    evals = []
+    for tree in trees
+        node, actions = descend(tree; kwargs...)
+
+        if is_terminating(node)
+            # Identity found. Terminate the playout by increase its self-playouts
+            node.self_playouts += 1
+        else
+            # Reached the bottom of the tree. Add the next position to the evals list
+            last_act = actions[end]
+            new_pos = node.position * last_act
+            push!(evals, (new_pos, node, last_act))
+        end
+    end
+    
+    isempty(evals) && return
+
+    # Evaluate in batch
+    dist, policy = model(first.(evals))
+
+    # Add the children to the parents
+    for (i, (new_pos, node, last_act)) in enumerate(evals)
+        child = MCTSNode(new_pos, node, dist[i], policy[:,i])
+        node[last_act] = child
+    end
+end
+
+step!(tree::MCTSTree; kwargs...) = step!([tree]; kwargs...)
+
 # Get the best action (most number of playouts overall)
 function best_action(tree::MCTSTree)
     _, action = findmax(playouts, tree[].children)
-    return action
+    return FaceTurn(action)
 end
 
 # Pretty-print
