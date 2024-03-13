@@ -10,7 +10,7 @@ mutable struct TrainingBuffer
     model::Model
 end
 
-TrainingBuffer(model::Model; max_capacity=100000) = TrainingBuffer(CircularBuffer{TrainingDataEntry}(max_capacity), 2, model)
+TrainingBuffer(model::Model; max_capacity=1000000) = TrainingBuffer(CircularBuffer{TrainingDataEntry}(max_capacity), 2, model)
 
 # Statistics
 Base.length(buffer::TrainingBuffer) = length(buffer.buffer)
@@ -22,8 +22,8 @@ Base.rand(rng::AbstractRNG, buffer::Random.SamplerTrivial{TrainingBuffer}) = ran
 function populate!(buffer::TrainingBuffer, populate_size::Integer, settings::Settings=Settings())
     # Create cubes from sequences of moves of length = complexity
     cubes = [Cube(rand(FaceTurn, buffer.complexity)) for _ in 1:populate_size]
-    # Solve the cubes in batch
-    seqs = solve(buffer.model, cubes, settings)
+    # Solve the cubes in batch (max distance = complexity + 5)
+    seqs = solve(buffer.model, cubes, settings, max_distance = buffer.complexity+5)
 
     num_new_entries = 0
     for (c, seq) in zip(cubes, seqs)
@@ -45,24 +45,25 @@ end
 populate!(buffer::TrainingBuffer, settings::Settings=Settings()) = populate!(buffer, settings.populate_size, settings)
 
 # Advance test: test the solve rate against the next complexity.
-# If the model can solve more than 50%, increase the complexity.
+# If the model can solve more than 80%, increase the complexity.
 function try_advance!(buffer::TrainingBuffer, settings::Settings=Settings())
     sample_size = settings.advance_test_size
     success_rate = settings.advance_test_success_rate
+    complexity = buffer.complexity
 
-    # Create cubes from sequences of moves of length = complexity + 1
-    cubes = [Cube(rand(FaceTurn, buffer.complexity + 1)) for _ in 1:sample_size]
+    # Create cubes from sequences of moves of length = complexity
+    cubes = [Cube(rand(FaceTurn, complexity)) for _ in 1:sample_size]
     # Test the solve rate
     time = @elapsed begin
-        rate = solve_rate(buffer.model, cubes, settings)
+        rate = solve_rate(buffer.model, cubes, settings; max_distance = complexity+5)
     end
-    # Increase the complexity if rate >= 50%
+    # Increase the complexity if rate >= 80%
     if rate >= success_rate
+        @info "Advance test PASSED" rate complexity time
         buffer.complexity += 1
-        @info "Advance test PASSED" rate complexity = buffer.complexity time
         return true
     else
-        @info "Advance test failed" rate complexity = buffer.complexity time
+        @info "Advance test failed" rate complexity time
         return false
     end
 end

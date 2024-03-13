@@ -1,3 +1,5 @@
+const MAX_MOVES = 30
+
 # Model to evaluate each Cube for distance and policy
 struct Model
     inner
@@ -5,7 +7,7 @@ struct Model
 end
 
 # Create a default model
-function Model(n_blocks::Integer=6, n_channels::Integer=32; device=cpu)
+function Model(n_blocks::Integer=4, n_channels::Integer=64; device=cpu)
     trunk = Chain((residual_block(n_channels => n_channels) for _ in 1:n_blocks)...)
     inner = Chain(
         RubikConv(N_INPUT_CHANNELS => n_channels),
@@ -32,13 +34,13 @@ residual_block((in, out)::Pair, conv1::Bool=false) = Parallel(+,
 )
 
 make_dist_head(in) = Chain(
-    residual_block(in => 10, true),
+    residual_block(in => MAX_MOVES, true),
     GlobalMeanPool(),
     Flux.flatten
 )
 
 make_policy_head(in) = Chain(
-    residual_block(in => 18, true),
+    residual_block(in => N_FACETURNS, true),
     GlobalMeanPool(),
     Flux.flatten
 )
@@ -51,7 +53,7 @@ function (model::Model)(cubes::AbstractVector{Cube})
     # Run inference
     d, p = model.inner(x) |> cpu
     # Postprocess
-    dist = (1:10)' * softmax(d)     # Average distance in 1:10
+    dist = (1:MAX_MOVES)' * softmax(d)     # Average distance in 1:MAX_MOVES
     policy = softmax(p)
     # Override the case where cube is identity
     for (i, c) in enumerate(cubes)
@@ -68,8 +70,7 @@ function (model::Model)(cube::Cube)
 end
 
 # Try to solve a position to identity (batch version)
-function solve(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Settings())
-    max_distance = settings.max_solve_distance
+function solve(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Settings(); max_distance::Integer=MAX_MOVES)
     num_playouts = settings.num_playouts
 
     all_seqs = [FaceTurn[] for _ in cubes]
@@ -119,8 +120,8 @@ end
 solve(model::Model, cube::Cube, settings::Settings=Settings()) = solve(model, [cube], settings)[1]
 
 # Evaluate the strength of a model based on the number of positions it can solve
-function solve_rate(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Settings())
-    solved = count(!isnothing, solve(model, cubes, settings))
+function solve_rate(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Settings(); max_distance::Integer=MAX_MOVES)
+    solved = count(!isnothing, solve(model, cubes, settings; max_distance))
     return solved / length(cubes)
 end
 

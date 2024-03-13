@@ -11,7 +11,7 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
     @info "Populate pretrain" count length = length(buffer) time = ptime
 
     for epoch in 1:settings.num_epochs
-        @info "EPOCH $epoch started"
+        @info "EPOCH $epoch started" complexity = buffer.complexity
 
         loss = 0.0
 
@@ -21,7 +21,7 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
 
             data = rand(buffer, settings.batch_size)
             x = features([entry.position for entry in data]) |> device
-            d = Flux.onehotbatch([entry.distance for entry in data], 1:10) |> device
+            d = Flux.onehotbatch([entry.distance for entry in data], 1:MAX_MOVES) |> device
             p = Flux.onehotbatch([entry.action for entry in data], ALL_FACETURNS) |> device
 
             l, gs = Flux.withgradient(model.inner) do m
