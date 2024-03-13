@@ -6,11 +6,11 @@
 
     learning_rate::Float64 = 0.01
 
-    advance_test_size::Int = 100
-    advance_test_success_rate::Float64 = 0.5
+    advance_test_size::Int = 200
+    advance_test_success_rate::Float64 = 0.75
 
     steps_per_populate::Int = 100
-    populate_size::Int = 100
+    populate_size::Int = 200
 
     max_solve_distance::Int = 10
 

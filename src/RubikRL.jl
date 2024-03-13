@@ -2,7 +2,7 @@ module RubikRL
 
 using RubikCore
 using Flux
-using Distributions, DataStructures, Parameters, Random
+using Distributions, DataStructures, Parameters, Random, ProgressMeter
 
 import RubikCore: N_FACETURNS, ALL_FACETURNS
 

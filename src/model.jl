@@ -45,6 +45,7 @@ make_policy_head(in) = Chain(
 
 # Evaluation routine
 function (model::Model)(cubes::AbstractVector{Cube})
+    GC.gc(false)
     # Extract the features
     x = features(cubes) |> model.device
     # Run inference

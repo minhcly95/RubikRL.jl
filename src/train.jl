@@ -15,6 +15,7 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
 
         loss = 0.0
 
+        prog = Progress(settings.steps_per_epoch; showspeed=true)
         time = @elapsed for step in 1:settings.steps_per_epoch
             GC.gc(false)
 
@@ -33,16 +34,18 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
             Flux.update!(opt_state, model.inner, gs[1])
             loss += l / settings.steps_per_epoch
 
-            @debug "Step $step"
-
             # Populate after some steps
             if step % settings.steps_per_populate == 0
                 ptime = @elapsed begin
                     count = populate!(buffer, settings)
                 end
-                @info "Populate step $step" count length = length(buffer) time = ptime
+                @debug "Populate step $step" count length = length(buffer) time = ptime
             end
+
+            next!(prog, showvalues = [(:buffer_length, length(buffer))])
         end
+
+        finish!(prog)
 
         @info "EPOCH $epoch ended" loss time
 
