@@ -20,26 +20,33 @@ Base.rand(rng::AbstractRNG, buffer::Random.SamplerTrivial{TrainingBuffer}) = ran
 
 # Populate the buffer (in batch)
 function populate!(buffer::TrainingBuffer, populate_size::Integer, settings::Settings=Settings())
-    # Create cubes from sequences of moves of length = complexity
-    cubes = [Cube(rand(FaceTurn, buffer.complexity)) for _ in 1:populate_size]
+    # Create generating sequences of moves of length = complexity
+    gen_seqs = [rand(FaceTurn, buffer.complexity) for _ in 1:populate_size]
+    # Create cubes from generating sequences
+    cubes = Cube.(gen_seqs)
     # Solve the cubes in batch (max distance = complexity + 5)
     seqs = solve(buffer.model, cubes, settings, max_distance = buffer.complexity+5)
 
-    num_new_entries = 0
-    for (c, seq) in zip(cubes, seqs)
-        # Skip trivial and unsolved cases
-        (isone(c) || isnothing(seq)) && continue
+    solved_better = 0
+    for (c, gseq, seq) in zip(cubes, gen_seqs, seqs)
+        # Skip trivial cases
+        isone(c) && continue
+        # Choose the shorter sequence between gseq' and seq (prioritize gseq because it's new data)
+        fseq = gseq'
+        if !isnothing(seq) && (length(seq) < length(fseq))
+            fseq = seq
+            solved_better += 1
+        end
         # Add new entry for each position in the sequence
-        for (i, s) in enumerate(seq)
-            entry = TrainingDataEntry(c, length(seq) - i + 1, s)
+        for (i, s) in enumerate(fseq)
+            entry = TrainingDataEntry(c, length(fseq) - i + 1, s)
             push!(buffer.buffer, entry)
             c *= s
-            num_new_entries += 1
         end
     end
 
-    # Return the number of new entries
-    return num_new_entries
+    # Return the proportion of positions that the model can solve better
+    return solved_better / populate_size
 end
 
 populate!(buffer::TrainingBuffer, settings::Settings=Settings()) = populate!(buffer, settings.populate_size, settings)

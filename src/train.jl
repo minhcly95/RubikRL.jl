@@ -3,12 +3,12 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
     loss_distance_weight = settings.loss_distance_weight
     loss_policy_weight = settings.loss_policy_weight
 
-    opt_state = Flux.setup(Flux.Adam(settings.learning_rate), model.inner)
-
-    ptime = @elapsed begin
-        count = populate!(buffer, settings)
-    end
-    @info "Populate pretrain" count length = length(buffer) time = ptime
+    opt_chain = OptimiserChain(
+        WeightDecay(settings.weight_decay),
+        Momentum(settings.learning_rate, settings.momentum_decay)
+    )
+    opt_state = Flux.setup(opt_chain, model.inner)
+    solved_better = 0.
 
     for epoch in 1:settings.num_epochs
         @info "EPOCH $epoch started" complexity = buffer.complexity
@@ -18,6 +18,11 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
         prog = Progress(settings.steps_per_epoch; showspeed=true)
         time = @elapsed for step in 1:settings.steps_per_epoch
             GC.gc(false)
+
+            # Populate once every several steps
+            if step % settings.steps_per_populate == 1
+                solved_better = populate!(buffer, settings)
+            end
 
             data = rand(buffer, settings.batch_size)
             x = features([entry.position for entry in data]) |> device
@@ -34,15 +39,7 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
             Flux.update!(opt_state, model.inner, gs[1])
             loss += l / settings.steps_per_epoch
 
-            # Populate after some steps
-            if step % settings.steps_per_populate == 0
-                ptime = @elapsed begin
-                    count = populate!(buffer, settings)
-                end
-                @debug "Populate step $step" count length = length(buffer) time = ptime
-            end
-
-            next!(prog, showvalues = [(:buffer_length, length(buffer))])
+            next!(prog, showvalues = [(:buffer_length, length(buffer)), (:solved_better, solved_better)])
         end
 
         finish!(prog)

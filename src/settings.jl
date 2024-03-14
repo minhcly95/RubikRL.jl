@@ -5,6 +5,8 @@
     num_playouts::Int = 100
 
     learning_rate::Float64 = 0.01
+    momentum_decay::Float64 = 0.9
+    weight_decay::Float64 = 0.001
 
     advance_test_size::Int = 200
     advance_test_success_rate::Float64 = 0.8
