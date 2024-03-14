@@ -10,7 +10,9 @@ mutable struct TrainingBuffer
     model::Model
 end
 
-TrainingBuffer(model::Model; max_capacity=1000000) = TrainingBuffer(CircularBuffer{TrainingDataEntry}(max_capacity), 2, model)
+const STARTING_COMPLEXITY = 3
+
+TrainingBuffer(model::Model; max_capacity=100000) = TrainingBuffer(CircularBuffer{TrainingDataEntry}(max_capacity), STARTING_COMPLEXITY, model)
 
 # Statistics
 Base.length(buffer::TrainingBuffer) = length(buffer.buffer)
@@ -28,6 +30,8 @@ function populate!(buffer::TrainingBuffer, populate_size::Integer, settings::Set
     seqs = solve(buffer.model, cubes, settings, max_distance = buffer.complexity+5)
 
     solved_better = 0
+    solved = count(!isnothing, seqs)
+
     for (c, gseq, seq) in zip(cubes, gen_seqs, seqs)
         # Skip trivial cases
         isone(c) && continue
@@ -46,7 +50,7 @@ function populate!(buffer::TrainingBuffer, populate_size::Integer, settings::Set
     end
 
     # Return the proportion of positions that the model can solve better
-    return solved_better / populate_size
+    return solved / populate_size, solved_better / populate_size
 end
 
 populate!(buffer::TrainingBuffer, settings::Settings=Settings()) = populate!(buffer, settings.populate_size, settings)

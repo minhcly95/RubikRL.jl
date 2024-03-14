@@ -18,7 +18,7 @@
     policy_noise_weight::Float64 = 0.25
     policy_noise_param::Float64 = 0.03
 
-    loss_distance_weight::Float64 = 1.0
+    loss_distance_weight::Float64 = 1.5
     loss_policy_weight::Float64 = 1.0
 end
 
