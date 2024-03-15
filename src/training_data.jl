@@ -1,7 +1,9 @@
+const ENTRY_NUM_ACTIONS = 2
+
 struct TrainingDataEntry
     position::Cube
     distance::Int
-    action::FaceTurn
+    actions::NTuple{ENTRY_NUM_ACTIONS,FaceTurn}
 end
 
 mutable struct TrainingBuffer
@@ -45,25 +47,31 @@ function populate!(buffer::TrainingBuffer, populate_size::Integer, settings::Set
             solved_better += 1
         end
 
-        d = c'  # Backup for later
+        # Backup for later
+        d = c'
+        iseq = fseq'
         n = length(fseq)
 
         # Add new entry for each position in the sequence
-        for (i, s) in enumerate(fseq)
-            entry = TrainingDataEntry(c, n - i + 1, s)
+        append!(fseq, rand(FaceTurn, ENTRY_NUM_ACTIONS - 1))  # Pad the sequence with random moves
+        for i in 1:n
+            entry = TrainingDataEntry(c, n - i + 1, Tuple(fseq[i+j-1] for j in 1:ENTRY_NUM_ACTIONS))
             push!(buffer.buffer, entry)
-            c *= s
+            c *= fseq[i]
             num_new_entries += 1
         end
+        @assert isone(c)    # Sanity check
 
         # Also add the inverse position and sequence if enabled (data augmentation by inverse)
         if settings.augment_inv
-            for (i, s) in enumerate(fseq')
-                entry = TrainingDataEntry(d, n - i + 1, s)
+            append!(iseq, rand(FaceTurn, ENTRY_NUM_ACTIONS - 1))  # Pad the sequence with random moves
+            for i in 1:n
+                entry = TrainingDataEntry(d, n - i + 1, Tuple(iseq[i+j-1] for j in 1:ENTRY_NUM_ACTIONS))
                 push!(buffer.buffer, entry)
-                d *= s
+                d *= iseq[i]
                 num_new_entries += 1
             end
+            @assert isone(d)    # Sanity check
         end
     end
 

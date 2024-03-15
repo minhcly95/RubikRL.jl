@@ -6,7 +6,7 @@ struct MCTSTree{M}
 end
 
 function MCTSTree(cube::Cube, model, settings::Settings = Settings())
-    dist, policy = model(cube)
+    dist, policy = evaluate(model, cube)
     root = MCTSNode(cube, 0, dist, policy)
     return MCTSTree(root, model, settings)
 end
@@ -123,7 +123,7 @@ function step!(trees::AbstractVector{<:MCTSTree}; model=trees[1].model, kwargs..
     isempty(evals) && return
 
     # Evaluate in batch
-    dist, policy = model(first.(evals))
+    dist, policy = evaluate(model, first.(evals))
 
     # Add the children to the parents
     for (i, (new_pos, node, last_act)) in enumerate(evals)

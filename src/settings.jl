@@ -7,7 +7,7 @@
     # Learning
     learning_rate::Float64 = 0.01
     momentum_decay::Float64 = 0.9
-    weight_decay::Float64 = 0.001
+    weight_decay::Float64 = 0.0001
     # Advance test
     advance_test_size::Int = 200
     advance_test_success_rate::Float64 = 0.8
@@ -28,5 +28,6 @@
     # Loss function
     loss_distance_weight::Float64 = 1.5
     loss_policy_weight::Float64 = 1.0
+    loss_next_policy_weight::Float64 = 0.15
 end
 

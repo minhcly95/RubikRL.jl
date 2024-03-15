@@ -6,6 +6,8 @@ struct Model
     device
 end
 
+Flux.@functor Model
+
 # Create a default model
 function Model(n_blocks::Integer=4, n_channels::Integer=64; device=cpu)
     trunk = Chain((residual_block(n_channels => n_channels) for _ in 1:n_blocks)...)
@@ -33,24 +35,34 @@ residual_block((in, out)::Pair, conv1::Bool=false) = Parallel(+,
     )
 )
 
-make_dist_head(in) = Chain(
-    residual_block(in => MAX_MOVES, true),
+output_head((in, out)::Pair, hidden) = Chain(
+    BatchNorm(in),
+    relu,
+    Conv((1,), in => hidden),
+    BatchNorm(hidden),
+    relu,
+    Conv((1,), hidden => out),
     GlobalMeanPool(),
     Flux.flatten
 )
 
-make_policy_head(in) = Chain(
-    residual_block(in => N_FACETURNS, true),
-    GlobalMeanPool(),
-    Flux.flatten
-)
+make_dist_head(in, hidden=96) = output_head(in => MAX_MOVES, hidden)
+
+make_policy_head(in, hidden=96) = output_head(in => 2N_FACETURNS, hidden)
 
 # Evaluation routine
-function (model::Model)(cubes::AbstractVector{Cube})
+function (model::Model)(x)
+    d, p = model.inner(x)
+    p1 = view(p, 1:N_FACETURNS, :)
+    p2 = view(p, N_FACETURNS+1:2N_FACETURNS, :)
+    return d, p1, p2
+end
+
+function evaluate(model::Model, cubes::AbstractVector{Cube})
     # Extract the features
     x = features(cubes) |> model.device
     # Run inference
-    d, p = model.inner(x) |> cpu
+    d, p, _ = model(x) |> cpu
     # Postprocess
     dist = (1:MAX_MOVES)' * softmax(d)     # Average distance in 1:MAX_MOVES
     policy = softmax(p)
@@ -63,8 +75,8 @@ function (model::Model)(cubes::AbstractVector{Cube})
     return dist, policy
 end
 
-function (model::Model)(cube::Cube)
-    d, p = model([cube])
+function evaluate(model::Model, cube::Cube)
+    d, p = evaluate(model, [cube])
     return d[1], reshape(p, :)
 end
 
@@ -97,7 +109,7 @@ function solve(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Set
 
         # Step the trees (in batch)
         for _ in 1:num_playouts
-            step!(curr_trees, root_noise = !no_exploration)
+            step!(curr_trees, root_noise=!no_exploration)
         end
 
         # Push new moves to the sequences
