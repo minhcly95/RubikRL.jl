@@ -69,7 +69,7 @@ function (model::Model)(cube::Cube)
 end
 
 # Try to solve a position to identity (batch version)
-function solve(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Settings(); max_distance::Integer=MAX_MOVES)
+function solve(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Settings(); max_distance::Integer=MAX_MOVES, no_exploration::Bool=false)
     num_playouts = settings.num_playouts
 
     all_seqs = [FaceTurn[] for _ in cubes]
@@ -97,7 +97,7 @@ function solve(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Set
 
         # Step the trees (in batch)
         for _ in 1:num_playouts
-            step!(curr_trees)
+            step!(curr_trees, root_noise = !no_exploration)
         end
 
         # Push new moves to the sequences
@@ -119,8 +119,8 @@ end
 solve(model::Model, cube::Cube, settings::Settings=Settings()) = solve(model, [cube], settings)[1]
 
 # Evaluate the strength of a model based on the number of positions it can solve
-function solve_rate(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Settings(); max_distance::Integer=MAX_MOVES)
-    solved = count(!isnothing, solve(model, cubes, settings; max_distance))
+function solve_rate(model::Model, cubes::AbstractVector{Cube}, settings::Settings=Settings(); max_distance::Integer=MAX_MOVES, no_exploration::Bool=false)
+    solved = count(!isnothing, solve(model, cubes, settings; max_distance, no_exploration))
     return solved / length(cubes)
 end
 

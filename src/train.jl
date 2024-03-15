@@ -8,7 +8,9 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
         Momentum(settings.learning_rate, settings.momentum_decay)
     )
     opt_state = Flux.setup(opt_chain, model.inner)
+
     solve_rate, better_rate = 0.0, 0.0
+    data_generated = 0
 
     trainmode!(model.inner)
 
@@ -22,13 +24,16 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
             # Populate once every several steps
             if step % settings.steps_per_populate == 1
                 testmode!(model.inner)
-                solve_rate, better_rate = populate!(buffer, settings)
+                num_new_entries, solve_rate, better_rate = populate!(buffer, settings)
+                data_generated += num_new_entries
                 trainmode!(model.inner)
             end
 
             # Preprocess data
             data = rand(buffer, settings.batch_size)
-            symm = rand(Symm, settings.batch_size)      # Augment by symmetry
+            symm = settings.augment_symm ?      # Augment data with random symmetry
+                   rand(Symm, settings.batch_size) :
+                   fill(Symm(), settings.batch_size)
 
             cubes = [s' * e.position * s for (e, s) in zip(data, symm)]
             distances = [e.distance for e in data]
@@ -49,8 +54,9 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
             Flux.update!(opt_state, model.inner, gs[1])
             loss += l / settings.steps_per_epoch
 
+            # Progress meter
             next!(prog, showvalues=[
-                (:buffer_length, length(buffer)),
+                (:data_generated, data_generated),
                 (:solve_rate, solve_rate),
                 (:better_rate, better_rate)
             ])
@@ -60,6 +66,7 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
 
         @info "EPOCH $epoch ended" loss time
 
+        # Advance test
         testmode!(model.inner)
         try_advance!(buffer, settings)
         trainmode!(model.inner)
