@@ -86,6 +86,8 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
         try_advance!(buffer, settings)
         trainmode!(model)
     end
+
+    testmode!(model)
 end
 
 train!(model::Model, buffer::TrainingBuffer; kwargs...) = train!(model, buffer, Settings(; kwargs...))

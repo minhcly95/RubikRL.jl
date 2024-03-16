@@ -22,7 +22,13 @@ include("mcts_tree.jl")
 export MCTSTree, descend, step!, best_action
 
 include("model.jl")
-export Model, evaluate, solve, solve_rate
+export Model, evaluate
+
+include("extend.jl")
+export extend
+
+include("solve.jl")
+export solve, solve_rate
 
 include("training_data.jl")
 export TrainingBuffer, populate!, try_advance!
