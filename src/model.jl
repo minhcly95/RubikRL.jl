@@ -50,6 +50,10 @@ make_dist_head(in, hidden=96) = output_head(in => MAX_MOVES, hidden)
 
 make_policy_head(in, hidden=96) = output_head(in => 2N_FACETURNS, hidden)
 
+trunk(model::Model) = model.inner[2]
+num_blocks(model::Model) = length(trunk(model))
+num_channels(model::Model) = size(first(model.inner).weight)[end]
+
 # Evaluation routine
 function (model::Model)(x)
     d, p = model.inner(x)
@@ -80,10 +84,8 @@ function evaluate(model::Model, cube::Cube)
     return d[1], reshape(p, :)
 end
 
-trunk(model::Model) = model.inner[2]
-num_blocks(model::Model) = length(trunk(model))
-num_channels(model::Model) = size(first(model.inner).weight)[end]
-
 Flux.cpu(model::Model) = Model(model.inner |> cpu, cpu)
 Flux.gpu(model::Model) = Model(model.inner |> gpu, gpu)
+
+Base.copy(model::Model) = deepcopy(model)
 

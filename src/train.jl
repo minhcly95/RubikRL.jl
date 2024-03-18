@@ -1,4 +1,4 @@
-function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
+function train!(model::Model, data_source::AbstractDataSource, settings::Settings)
     device = model.device
     steps_per_epoch = settings.steps_per_epoch
     loss_distance_weight = settings.loss_distance_weight
@@ -11,13 +11,11 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
     )
     opt_state = Flux.setup(opt_chain, model)
 
-    solve_rate, better_rate = 0.0, 0.0
     data_generated = 0
-
-    trainmode!(model)
+    aux_info = (;)
 
     for epoch in 1:settings.num_epochs
-        @info "EPOCH $epoch started" complexity = buffer.complexity
+        @info "EPOCH $epoch started" complexity = data_source.complexity
 
         loss, loss_d, loss_p1, loss_p2 = 0.0, 0.0, 0.0, 0.0
 
@@ -25,14 +23,16 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
         time = @elapsed for step in 1:steps_per_epoch
             # Populate once every several steps
             if step % settings.steps_per_populate == 1
-                testmode!(model)
-                num_new_entries, solve_rate, better_rate = populate!(buffer, settings)
+                num_new_entries, aux_info = populate!(data_source)
                 data_generated += num_new_entries
-                trainmode!(model)
             end
 
+            trainmode!(model)
+            GC.gc(false)
+
             # Preprocess data
-            data = rand(buffer, settings.batch_size)
+            data = rand(data_source, settings.batch_size)
+
             symm = settings.augment_symm ?      # Augment data with random symmetry
                    rand(Symm, settings.batch_size) :
                    fill(Symm(), settings.batch_size)
@@ -65,10 +65,9 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
 
             # Progress meter
             next!(prog, showvalues=[
+                (:(loss, d, p1, p2), round.((loss, loss_d, loss_p1, loss_p2) ./ step, digits=3)),
                 (:data_generated, data_generated),
-                (:solve_rate, solve_rate),
-                (:better_rate, better_rate),
-                (:(loss, d, p1, p2), round.((loss, loss_d, loss_p1, loss_p2) ./ step, digits=3))
+                collect(zip(keys(aux_info), aux_info))...,
             ])
         end
 
@@ -81,13 +80,11 @@ function train!(model::Model, buffer::TrainingBuffer, settings::Settings)
 
         @info "EPOCH $epoch ended" loss loss_d loss_p1 loss_p2 time
 
-        # Advance test
-        testmode!(model)
-        try_advance!(buffer, settings)
-        trainmode!(model)
+        # Post-epoch routine
+        post_epoch!(data_source, model)
     end
 
     testmode!(model)
 end
 
-train!(model::Model, buffer::TrainingBuffer; kwargs...) = train!(model, buffer, Settings(; kwargs...))
+train!(model::Model, buffer::InlineModelDataSource; kwargs...) = train!(model, buffer, Settings(; kwargs...))

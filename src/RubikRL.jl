@@ -30,8 +30,15 @@ export extend
 include("solve.jl")
 export solve, solve_rate
 
-include("training_data.jl")
-export TrainingBuffer, populate!, try_advance!
+include("data_source/abstract.jl")
+include("data_source/canon_seq.jl")
+include("data_source/utils.jl")
+
+include("data_source/inline_model.jl")
+export InlineModelDataSource
+
+include("data_source/random_seq_source.jl")
+export RandomSequenceDataSource
 
 include("train.jl")
 export train!
