@@ -10,3 +10,10 @@ function push_seq!(buffer, cube, seq)
     return n
 end
 
+const _SUBSCRIPT_DIGITS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
+
+function _subscript_string(n::Integer)
+    str = string(n)
+    return replace(str, (string.(0:9) .=> _SUBSCRIPT_DIGITS)...)
+end
+

@@ -15,9 +15,10 @@
     steps_per_populate::Int = 100
     populate_size::Int = 200
     # Data buffer
-    buffer_capacity::Int = 500000
+    buffer_capacity::Int = 1000000
     complexity_start::Int = 6
     complexity_step::Int = 1
+    complexity_randomseq::Int = 18
     # Augmentation
     augment_symm::Bool = true
     augment_inv::Bool = true

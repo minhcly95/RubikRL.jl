@@ -6,7 +6,7 @@ end
 
 RandomSequenceDataSource(settings::Settings=Settings()) = RandomSequenceDataSource(
     CircularBuffer{TrainingDataEntry}(settings.buffer_capacity),
-    settings.complexity_start,
+    settings.complexity_randomseq,
     settings
 )
 
@@ -44,32 +44,30 @@ function populate!(ds::RandomSequenceDataSource)
     return num_new_entries, (;)
 end
 
-# Post-epoch routine: 
-# Advance test: test the solve rate against the next complexity.
-# If the model can solve more than success_rate, increase the complexity.
+# Post-epoch routine: test the solve rate against the each complexity in 1:20.
 function post_epoch!(ds::RandomSequenceDataSource, new_model::Model)
-    settings = ds.settings
-    sample_size = settings.test_size
-    success_rate = settings.test_success_rate
-    complexity = ds.complexity
-
     testmode!(new_model)
 
     # Create cubes from sequences of moves of length = complexity
-    cubes = Cube.(rand(CanonSequence(ds.complexity), sample_size))
+    cubes = Cube[]
+    for complexity in 1:20
+        append!(cubes, Cube.(rand(CanonSequence(complexity), 10)))
+    end
 
-    # Test the solve rate (without exploration features)
+    # Solve the cubes (without exploration features)
     time = @elapsed begin
-        rate = solve_rate(new_model, cubes, settings; no_exploration=true)
+        seqs = solve(new_model, cubes, ds.settings; no_exploration=true)
     end
 
-    # Increase the complexity if rate >= success_rate
-    if rate >= success_rate
-        @info "Test PASSED" rate complexity time
-        ds.complexity += settings.complexity_step
-    else
-        @info "Test failed" rate complexity time
+    # Count the number of solved cubes per complexity
+    counts = zeros(Int, 20)
+    for (complexity, cseqs) in zip(1:20, Iterators.partition(seqs, 10))
+        counts[complexity] = count(!isnothing, cseqs)
     end
+
+    # Report
+    count_str = join(["$(counts[i])$(_subscript_string(i))" for i in 1:20], " ")
+    @info "Post-epoch test" counts = count_str time
 end
 
 # Pretty-print
